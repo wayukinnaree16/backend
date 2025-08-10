@@ -98,6 +98,9 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev')); // HTTP request logger middleware
 }
 
+// Serve static files from the 'uploads' directory
+app.use('/uploads', express.static('uploads'));
+
 // Debug middleware to log request paths (placed before API routes)
 app.use((req, res, next) => {
   console.log('Request path:', req.path);
@@ -154,4 +157,4 @@ app.use((req, res, next) => {
 // Global error handler
 app.use(errorHandler);
 
-module.exports = app; 
+module.exports = app;

@@ -39,7 +39,7 @@ const uploadProfileImage = upload.single('profileImage'); // รับ field ช
 const uploadFoundationDocument = upload.single('documentFile'); // รับ field ชื่อ 'documentFile'
 
 // Middleware สำหรับอัพโหลดรูปภาพทั่วไป (single file)
-const uploadGeneralImage = upload.single('image'); // รับ field ชื่อ 'image'
+const uploadGeneralImage = upload.single('logo_file'); // รับ field ชื่อ 'logo_file'
 
 module.exports = {
   uploadPledgeImages,
@@ -47,4 +47,4 @@ module.exports = {
   uploadFoundationDocument,
   uploadGeneralImage,
   // สามารถเพิ่ม single upload middleware อื่นๆ ได้
-}; 
+};

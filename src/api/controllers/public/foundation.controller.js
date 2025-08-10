@@ -67,17 +67,9 @@ const listPublicFoundations = async (req, res) => {
           type_id,
           name,
           description
-        ),
-        users!foundation_id (
-          user_id,
-          email,
-          account_status,
-          is_email_verified
         )
       `, { count: 'exact' })
-      .not('verified_at', 'is', null)
-      .eq('users.account_status', 'active')
-      .eq('users.is_email_verified', true);
+      .not('verified_at', 'is', null);
 
     // Apply filters
     if (name) {
@@ -257,21 +249,63 @@ const initializeFoundationTypes = async () => {
 // Initialize sample foundation data if none exists
 const initializeSampleFoundations = async () => {
   try {
-    // Get existing foundation
-    const { data: existingFoundation, error: foundationError } = await supabase
+    // For development/testing: Clear existing sample data to ensure fresh start
+    console.log('Clearing existing sample foundations and users...');
+
+    // Get IDs of sample users (foundation_admin type)
+    const { data: sampleUsersToDelete, error: fetchUsersError } = await supabase
+      .from('users')
+      .select('user_id')
+      .eq('user_type', 'foundation_admin')
+      .in('email', ['lovelypets@example.com', 'friendhelp@example.com', 'saveanimals@example.com']); // Use emails to identify sample users
+
+    if (fetchUsersError) {
+      console.error('Error fetching sample users to delete:', fetchUsersError);
+      // Continue even if fetch fails
+    }
+
+    const sampleUserIds = sampleUsersToDelete ? sampleUsersToDelete.map(u => u.user_id) : [];
+
+    if (sampleUserIds.length > 0) {
+      // Delete foundations first due to foreign key constraints
+      const { error: deleteFoundationsError } = await supabase
+        .from('foundations')
+        .delete()
+        .in('foundation_id', sampleUserIds);
+
+      if (deleteFoundationsError) {
+        console.error('Error deleting existing foundations:', deleteFoundationsError);
+      }
+
+      // Then delete sample users
+      const { error: deleteUsersError } = await supabase
+        .from('users')
+        .delete()
+        .in('user_id', sampleUserIds);
+
+      if (deleteUsersError) {
+        console.error('Error deleting existing sample users:', deleteUsersError);
+      }
+      console.log(`Cleared ${sampleUserIds.length} sample foundations and users.`);
+    } else {
+      console.log('No sample foundations/users found to clear.');
+    }
+
+    // Check if any foundations exist after potential deletion (to decide if we need to re-initialize)
+    const { data: existingFoundation, error: foundationCheckError } = await supabase
       .from('foundations')
       .select('*')
       .limit(1)
       .single();
 
-    if (foundationError && foundationError.code !== 'PGRST116') {
-      console.error('Error checking foundation:', foundationError);
+    if (foundationCheckError && foundationCheckError.code !== 'PGRST116') {
+      console.error('Error checking foundation after clear attempt:', foundationCheckError);
       return;
     }
 
-    // If we already have foundations, skip initialization
+    // If we still have foundations (e.g., not sample data, or clear failed), skip initialization
     if (existingFoundation) {
-      console.log('Foundations already exist, skipping initialization');
+      console.log('Foundations still exist after clear attempt, skipping initialization.');
       return;
     }
 
@@ -332,7 +366,7 @@ const initializeSampleFoundations = async () => {
       {
         foundation_id: insertedUsers[0].user_id,
         foundation_name: 'มูลนิธิรักสัตว์มีสุข (Test) - อัปเดตแล้ว',
-        logo_url: 'https://example.com/logos/lovelypets_v2.png',
+        // logo_url will be handled by actual uploads, or default to placeholder if not set
         history_mission: 'ช่วยเหลือและดูแลสัตว์ทุกประเภท...',
         foundation_type_id: 2, // มูลนิธิเพื่อสัตว์
         address_line1: '123 ถนนนิมมานเหมินทร์',
@@ -351,7 +385,7 @@ const initializeSampleFoundations = async () => {
       {
         foundation_id: insertedUsers[1].user_id,
         foundation_name: 'มูลนิธิเพื่อนช่วยเพื่อน',
-        logo_url: 'https://example.com/logo2.png',
+        // logo_url will be handled by actual uploads, or default to placeholder if not set
         history_mission: 'ช่วยเหลือผู้ด้อยโอกาสในสังคม...',
         foundation_type_id: 7,
         address_line1: '456 ถนนเพชรบุรี',
@@ -370,7 +404,7 @@ const initializeSampleFoundations = async () => {
       {
         foundation_id: insertedUsers[2].user_id,
         foundation_name: 'มูลนิธิรักษ์สัตว์',
-        logo_url: 'https://example.com/logo3.png',
+        // logo_url will be handled by actual uploads, or default to placeholder if not set
         history_mission: 'ช่วยเหลือและคุ้มครองสัตว์...',
         foundation_type_id: 6,
         address_line1: '789 ถนนพระราม 9',
@@ -426,7 +460,19 @@ const getPublicFoundationById = async (req, res) => {
       .select(`
         foundation_id,
         foundation_name,
+        logo_url,
+        history_mission,
+        province,
+        contact_phone,
+        contact_email,
+        website_url,
+        address_line1,
+        address_line2,
+        city,
+        postal_code,
+        gmaps_embed_url,
         verified_at,
+        foundation_type_id,
         foundation_types!foundation_type_id (
           name
         ),
@@ -458,11 +504,24 @@ const getPublicFoundationById = async (req, res) => {
       });
     }
 
-    // Format the response data with only essential fields
+    // Format the response data with all necessary fields
     const formattedData = {
       foundation_id: foundation.foundation_id,
       foundation_name: foundation.foundation_name,
-      verified_at: foundation.verified_at
+      logo_url: foundation.logo_url,
+      history_mission: foundation.history_mission,
+      province: foundation.province,
+      contact_phone: foundation.contact_phone,
+      contact_email: foundation.contact_email,
+      website_url: foundation.website_url,
+      address_line1: foundation.address_line1,
+      address_line2: foundation.address_line2,
+      city: foundation.city,
+      postal_code: foundation.postal_code,
+      gmaps_embed_url: foundation.gmaps_embed_url,
+      verified_at: foundation.verified_at,
+      foundation_type: foundation.foundation_types,
+      user: foundation.users
     };
 
     return res.status(200).json({
@@ -486,4 +545,4 @@ module.exports = {
   getPublicFoundationDetails,
   listFoundationTypes,
   getPublicFoundationById,
-}; 
+};

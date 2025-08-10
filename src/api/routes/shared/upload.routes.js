@@ -28,7 +28,8 @@ const uploadImage = asyncHandler(async (req, res) => {
       req.file.buffer,
       req.file.originalname,
       bucketName,
-      `user_${req.user.user_id}`
+      req.file.mimetype, // Correctly pass mimetype
+      `user_${req.user.user_id}` // Correctly pass folderPath
     );
 
     res.status(httpStatus.OK).json(
@@ -51,4 +52,4 @@ const uploadImage = asyncHandler(async (req, res) => {
 
 router.post('/image', uploadGeneralImage, uploadImage);
 
-module.exports = router; 
+module.exports = router;

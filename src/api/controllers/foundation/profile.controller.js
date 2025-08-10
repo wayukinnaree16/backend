@@ -3,6 +3,8 @@ const { supabase } = require('../../../config/supabase.config');
 const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
+const { uploadGeneralImage } = require('../../middlewares/upload.middleware');
+const { uploadToSupabaseStorage } = require('../../../services/file-upload.service');
 
 // GET /api/foundation/profile/me
 const getMyFoundationProfile = asyncHandler(async (req, res) => {
@@ -49,16 +51,43 @@ const getMyFoundationProfile = asyncHandler(async (req, res) => {
 const upsertMyFoundationProfile = asyncHandler(async (req, res) => {
   const foundationAdminUserId = req.user.user_id;
   const profileData = req.validatedData; // จาก validate middleware
+  const logoFile = req.file; // The uploaded file, if any
 
-  // Debug logging
-  console.log('Received profile data:', profileData);
-  console.log('Foundation name:', profileData.foundation_name);
+  // Debug logging: Check if file is received by controller
+  console.log('Profile Controller - req.file:', logoFile);
+  if (logoFile) {
+    console.log('Profile Controller - logoFile details:', {
+      originalname: logoFile.originalname,
+      mimetype: logoFile.mimetype,
+      size: logoFile.size,
+      bufferLength: logoFile.buffer ? logoFile.buffer.length : 0
+    });
+  }
+  console.log('Profile Controller - req.body:', req.body);
+
+  let logoUrl = profileData.logo_url; // Keep existing URL if no new file
+
+  // If a new file is uploaded, upload it to Supabase Storage
+  if (logoFile) {
+    try {
+      const { publicUrl, error } = await uploadToSupabaseStorage(logoFile.buffer, logoFile.originalname, 'foundation-logos', logoFile.mimetype, `foundation_logos/${foundationAdminUserId}`);
+      if (error) {
+        console.error("Error uploading logo file:", error);
+        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to upload logo: ${error.message}`);
+      }
+      logoUrl = publicUrl;
+    } catch (uploadError) {
+      console.error("Exception during logo upload:", uploadError);
+      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to process logo upload: ${uploadError.message}`);
+    }
+  }
 
   // ข้อมูลที่จะ insert/update
   // foundation_id จะเป็น user_id ของ foundation admin
   const dataToUpsert = {
     foundation_id: foundationAdminUserId, // PK และ FK to users.user_id
     ...profileData,
+    logo_url: logoUrl, // Update logo_url with new URL or keep old
     // created_at, updated_at จะถูกจัดการโดย DB (DEFAULT CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP)
     // verified_by_admin_id, verified_at, verification_notes จะถูกจัดการโดย System Admin
   };
@@ -102,4 +131,4 @@ const upsertMyFoundationProfile = asyncHandler(async (req, res) => {
 module.exports = {
   getMyFoundationProfile,
   upsertMyFoundationProfile,
-}; 
+};

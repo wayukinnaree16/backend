@@ -137,9 +137,6 @@ const getPublicWishlistItemDetails = asyncHandler(async (req, res) => {
         )
     `)
     .eq('wishlist_item_id', wishlistItemId)
-    .eq('status', 'open_for_donation') // Only show if open for donation
-    .eq('foundation.user_account.account_status', 'active')
-    .not('foundation.verified_at', 'is', null)
     .maybeSingle();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found

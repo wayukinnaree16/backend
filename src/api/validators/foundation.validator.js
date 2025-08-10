@@ -6,7 +6,8 @@ const createOrUpdateFoundationProfile = Joi.object({
     'any.required': 'Foundation name is required',
     'string.max': 'Foundation name cannot be longer than 255 characters'
   }),
-  logo_url: Joi.string().uri().max(255).allow(null, ''),
+  // อนุญาตให้ส่ง logo_url กรณีอัปโหลดไฟล์แยกแล้วส่ง URL มาพร้อมกับการบันทึกโปรไฟล์
+  logo_url: Joi.string().max(1000).allow(null, ''), // ไม่บังคับเป็น uri() เผื่อกรณีเป็น signed URL/temporary URL
   history_mission: Joi.string().allow(null, ''),
   foundation_type_id: Joi.number().integer().positive().allow(null), // FK
   address_line1: Joi.string().max(255).allow(null, ''),
@@ -39,4 +40,4 @@ const publicFoundationQuery = Joi.object({
 module.exports = {
   createOrUpdateFoundationProfile,
   publicFoundationQuery,
-}; 
+};
