@@ -36,7 +36,7 @@ const uploadPledgeImages = upload.array('pledgeImages', 5); // รับ field �
 const uploadProfileImage = upload.single('profileImage'); // รับ field ชื่อ 'profileImage'
 
 // Middleware สำหรับอัพโหลดเอกสารมูลนิธิ (single file)
-const uploadFoundationDocument = upload.single('documentFile'); // รับ field ชื่อ 'documentFile'
+const uploadFoundationDocument = upload.single('document'); // รับ field ชื่อ 'document'
 
 // Middleware สำหรับอัพโหลดรูปภาพทั่วไป (single file)
 const uploadGeneralImage = upload.single('logo_file'); // รับ field ชื่อ 'logo_file'

@@ -157,11 +157,19 @@ const loginUser = asyncHandler(async (req, res) => {
     .single();
 
   if (findError || !user) {
+    console.error('Login error: User not found or error finding user.', { email, findError });
     throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid login credentials");
   }
 
+  console.log('User found for login attempt:', {
+    user_id: user.user_id,
+    email: user.email,
+    password_hash_stored: user.password_hash
+  });
+
   // Verify password
   const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+  console.log('Password validation result:', { isPasswordValid });
   if (!isPasswordValid) {
     throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid login credentials");
   }

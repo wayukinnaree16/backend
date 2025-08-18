@@ -159,6 +159,8 @@ const updateMyWishlistItem = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Wishlist item not found or you do not have permission to update it.');
   }
 
+  console.log('Updating wishlist item with data:', updateData); // Added logging
+
   // 2. Perform update
   const { data: updatedItem, error: updateError } = await supabase
     .from('foundation_wishlist_items')
@@ -234,4 +236,4 @@ module.exports = {
   getMyWishlistItemDetails,
   updateMyWishlistItem,
   deleteMyWishlistItem,
-}; 
+};

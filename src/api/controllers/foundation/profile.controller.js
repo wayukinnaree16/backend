@@ -70,11 +70,7 @@ const upsertMyFoundationProfile = asyncHandler(async (req, res) => {
   // If a new file is uploaded, upload it to Supabase Storage
   if (logoFile) {
     try {
-      const { publicUrl, error } = await uploadToSupabaseStorage(logoFile.buffer, logoFile.originalname, 'foundation-logos', logoFile.mimetype, `foundation_logos/${foundationAdminUserId}`);
-      if (error) {
-        console.error("Error uploading logo file:", error);
-        throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to upload logo: ${error.message}`);
-      }
+      const publicUrl = await uploadToSupabaseStorage(logoFile.buffer, logoFile.originalname, 'foundation-logos', logoFile.mimetype, `foundation_logos/${foundationAdminUserId}`);
       logoUrl = publicUrl;
     } catch (uploadError) {
       console.error("Exception during logo upload:", uploadError);
@@ -91,6 +87,15 @@ const upsertMyFoundationProfile = asyncHandler(async (req, res) => {
     // created_at, updated_at จะถูกจัดการโดย DB (DEFAULT CURRENT_TIMESTAMP, ON UPDATE CURRENT_TIMESTAMP)
     // verified_by_admin_id, verified_at, verification_notes จะถูกจัดการโดย System Admin
   };
+
+  // Check if this is a new profile creation (not an update)
+  const { data: existingProfile, error: checkError } = await supabase
+    .from('foundations')
+    .select('foundation_id')
+    .eq('foundation_id', foundationAdminUserId)
+    .maybeSingle();
+
+  const isNewProfile = !existingProfile;
 
   // Debug logging
   console.log('Data to upsert:', dataToUpsert);
@@ -117,6 +122,21 @@ const upsertMyFoundationProfile = asyncHandler(async (req, res) => {
 
   if (!upsertedProfile) {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to save or retrieve foundation profile after operation.');
+  }
+
+  // If this is a new profile creation, set user account status to pending_verification
+  if (isNewProfile) {
+    const { error: userUpdateError } = await supabase
+      .from('users')
+      .update({ account_status: 'pending_verification' })
+      .eq('user_id', foundationAdminUserId)
+      .eq('user_type', 'foundation_admin');
+
+    if (userUpdateError) {
+      console.error('Error updating user account status to pending_verification:', userUpdateError);
+      // Don't throw error here as the profile was created successfully
+      // Just log the error for debugging
+    }
   }
 
   res.status(httpStatus.OK).json(

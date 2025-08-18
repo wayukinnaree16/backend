@@ -20,7 +20,11 @@ const getReceivedPledges = asyncHandler(async (req, res) => {
     .eq('foundation_id', foundationAdminUserId);
 
   if (status) {
-    query = query.eq('status', status);
+    if (Array.isArray(status)) {
+      query = query.in('status', status);
+    } else {
+      query = query.eq('status', status);
+    }
   }
 
   const [sortField, sortOrder] = sort_by.split('_');
@@ -39,7 +43,13 @@ const getReceivedPledges = asyncHandler(async (req, res) => {
 
   // Get total count for pagination
   let countQuery = supabase.from('donation_pledges').select('count', { count: 'exact' }).eq('foundation_id', foundationAdminUserId);
-  if (status) countQuery = countQuery.eq('status', status);
+  if (status) {
+    if (Array.isArray(status)) {
+      countQuery = countQuery.in('status', status);
+    } else {
+      countQuery = countQuery.eq('status', status);
+    }
+  }
   const { count: totalItems, error: countError } = await countQuery.single();
 
    if (countError) {
@@ -187,7 +197,8 @@ const confirmPledgeReceipt = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, `Pledge with ID ${pledgeId} not found or does not belong to your foundation.`);
   }
   // Foundation can confirm receipt if status is 'approved_by_foundation' (donor delivers) or 'shipping_in_progress' (courier)
-  if (!['approved_by_foundation', 'shipping_in_progress'].includes(pledge.status)) {
+  // Foundation can confirm receipt if status is 'pending_foundation_approval', 'approved_by_foundation' (donor delivers) or 'shipping_in_progress' (courier)
+  if (!['pending_foundation_approval', 'approved_by_foundation', 'shipping_in_progress'].includes(pledge.status)) {
     throw new ApiError(httpStatus.BAD_REQUEST, `Cannot confirm receipt for pledge with status '${pledge.status}'.`);
   }
 
@@ -210,12 +221,10 @@ const confirmPledgeReceipt = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to update pledge status to received: ${pledgeUpdateError.message}`);
   }
 
-  // 3. Atomically update quantity_received in Foundation_Wishlist_Items
-  // Use supabase.rpc for atomic increment if you create a DB function.
-  // Example direct (less safe for concurrency without proper DB function):
+  // 3. Atomically update quantity_received in Foundation_Wishlist_Items and check for fulfillment
   const { data: wishlistItem, error: fetchWishlistError } = await supabase
     .from('foundation_wishlist_items')
-    .select('quantity_received')
+    .select('quantity_received, quantity_needed')
     .eq('wishlist_item_id', pledge.wishlist_item_id)
     .single();
 
@@ -223,24 +232,31 @@ const confirmPledgeReceipt = asyncHandler(async (req, res) => {
     console.error("CRITICAL: Failed to fetch wishlist item for quantity update:", fetchWishlistError);
   } else {
     const newQuantityReceived = (wishlistItem.quantity_received || 0) + (pledge.quantity_pledged || 0);
+    let updateWishlistItemData = { quantity_received: newQuantityReceived };
+
+    // Check if the item is now fulfilled
+    if (newQuantityReceived >= wishlistItem.quantity_needed) {
+      updateWishlistItemData.status = 'fulfilled';
+    }
+
     const { error: wishlistUpdateError } = await supabase
       .from('foundation_wishlist_items')
-      .update({ quantity_received: newQuantityReceived })
+      .update(updateWishlistItemData)
       .eq('wishlist_item_id', pledge.wishlist_item_id);
+
     if (wishlistUpdateError) {
-      console.error("CRITICAL: Pledge status updated, but failed to update wishlist item quantity_received:", wishlistUpdateError);
+      console.error("CRITICAL: Pledge status updated, but failed to update wishlist item quantity_received/status:", wishlistUpdateError);
     }
   }
   // --- Transaction End (Conceptual) ---
 
   // TODO: Notify Donor about receipt confirmation.
-  // TODO: Check if wishlist item is now 'fulfilled' based on quantity_needed vs quantity_received.
 
   res.status(httpStatus.OK).json(
     new ApiResponse(
       httpStatus.OK,
       updatedPledge,
-      'Pledge receipt confirmed successfully. Item quantity updated.'
+      'Pledge receipt confirmed successfully. Item quantity and status updated.'
     )
   );
 });
@@ -251,4 +267,4 @@ module.exports = {
   approvePledge,
   rejectPledge,
   confirmPledgeReceipt,
-}; 
+};

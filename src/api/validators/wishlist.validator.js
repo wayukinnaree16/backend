@@ -18,6 +18,7 @@ const foundationWishlistItemSchema = Joi.object({
   status: Joi.string().valid('open_for_donation', 'temporarily_closed', 'fulfilled', 'archived').default('open_for_donation'),
   example_image_url: Joi.string().uri().max(255).allow(null, ''),
   // posted_date, last_updated_date are managed by DB
+  // expiry_date is removed as per user request
 });
 
 const updateFoundationWishlistItemSchema = Joi.object({
@@ -52,4 +53,4 @@ module.exports = {
   foundationWishlistItemSchema,
   updateFoundationWishlistItemSchema,
   publicWishlistQuerySchema,
-}; 
+};

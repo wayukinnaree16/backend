@@ -7,10 +7,10 @@ const { uploadToSupabaseStorage } = require('../../../services/file-upload.servi
 
 // POST /api/foundation/documents
 const uploadFoundationDocument = asyncHandler(async (req, res) => {
-  const foundationAdminUserId = req.user.user_id; // foundation_id
-  const { document_name, document_url } = req.validatedData; // URL can come from client or server upload
+  const foundationAdminUserId = req.user.user_id;
+  const { document_name, document_type } = req.validatedData;
 
-  // Verify foundation profile exists for this admin
+  // Check if foundation profile exists
   const { data: foundation, error: foundationCheckError } = await supabase
     .from('foundations')
     .select('foundation_id')
@@ -21,45 +21,39 @@ const uploadFoundationDocument = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, 'Foundation profile not found. Please create a profile before uploading documents.');
   }
 
-  // Handle document file upload if file is provided
-  let finalDocumentUrl = document_url;
-  if (req.file) {
-    try {
-      const bucketName = 'foundation-documents';
-      const uploadedDocumentUrl = await uploadToSupabaseStorage(
-        req.file.buffer,
-        req.file.originalname,
-        bucketName,
-        `foundation_${foundationAdminUserId}`
-      );
-      finalDocumentUrl = uploadedDocumentUrl;
-    } catch (uploadError) {
-      console.error('Error uploading foundation document:', uploadError);
-      throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to upload document file');
-    }
+  if (!req.file) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Document file is required.');
   }
 
-  // Validate that either file is uploaded or URL is provided
-  if (!req.file && !document_url) {
-    throw new ApiError(httpStatus.BAD_REQUEST, 'Either upload a document file or provide a document URL');
+  let finalDocumentUrl;
+  try {
+    const bucketName = 'foundation-documents';
+    const uploadedDocumentUrl = await uploadToSupabaseStorage(
+      req.file.buffer,
+      req.file.originalname,
+      bucketName,
+      `foundation_${foundationAdminUserId}`
+    );
+    finalDocumentUrl = uploadedDocumentUrl;
+  } catch (uploadError) {
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to upload document: ${uploadError.message}`);
   }
 
-  const documentToInsert = {
-    foundation_id: foundationAdminUserId,
-    document_name,
-    document_url: finalDocumentUrl, // Use the URL from server upload or client
-    verification_status_by_admin: 'pending_review', // Default status
-  };
-
+  // Save document record to database
   const { data: newDocument, error: insertError } = await supabase
     .from('foundation_documents')
-    .insert(documentToInsert)
+    .insert({
+        foundation_id: foundationAdminUserId,
+        document_name,
+        document_type,
+        document_url: finalDocumentUrl,
+        verification_status_by_admin: 'pending_review'
+      })
     .select()
     .single();
 
   if (insertError) {
-    console.error("Error uploading foundation document record:", insertError);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to record document: ${insertError.message}`);
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to save document record: ${insertError.message}`);
   }
 
   res.status(httpStatus.CREATED).json(
@@ -99,29 +93,22 @@ const deleteMyFoundationDocument = asyncHandler(async (req, res) => {
   const foundationAdminUserId = req.user.user_id;
   const { documentId } = req.params;
 
-  // Optional: Delete file from Supabase Storage first if you manage it server-side.
-  // For now, we only delete the DB record. Client should manage storage deletion if they uploaded.
-
-  const { data: deletedDoc, error } = await supabase
+  const { data: deletedDocument, error } = await supabase
     .from('foundation_documents')
     .delete()
     .eq('document_id', documentId)
-    .eq('foundation_id', foundationAdminUserId) // Ensure they only delete their own
+    .eq('foundation_id', foundationAdminUserId)
     .select()
     .single();
 
-  if (error && error.code !== 'PGRST116' /* No rows found */) {
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to delete document: ${error.message}`);
+  if (error || !deletedDocument) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Document not found or you do not have permission to delete it.');
   }
-  if (!deletedDoc) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'Document not found or you do not have permission to delete it.');
-  }
-
 
   res.status(httpStatus.OK).json(
     new ApiResponse(
       httpStatus.OK,
-      deletedDoc, // or null
+      deletedDocument,
       'Foundation document deleted successfully.'
     )
   );
@@ -131,4 +118,4 @@ module.exports = {
   uploadFoundationDocument,
   getMyFoundationDocuments,
   deleteMyFoundationDocument,
-}; 
+};

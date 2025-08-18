@@ -93,6 +93,11 @@ const listPublicWishlistItems = asyncHandler(async (req, res) => {
   const { data: wishlistItems, error } = await query;
   const { count, error: countError } = await countQuery.single();
 
+  console.log('Query results for wishlist items:', {
+    wishlistItemsCount: count,
+    wishlistItemsFound: wishlistItems?.length || 0,
+    sample: wishlistItems?.[0]
+  });
 
   if (error || countError) {
     console.error("Error listing public wishlist items:", error || countError);
@@ -160,4 +165,4 @@ const getPublicWishlistItemDetails = asyncHandler(async (req, res) => {
 module.exports = {
   listPublicWishlistItems,
   getPublicWishlistItemDetails,
-}; 
+};
