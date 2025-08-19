@@ -8,16 +8,16 @@ const asyncHandler = require('../../../utils/asyncHandler');
 const listPendingVerificationFoundations = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
 
-  // Find users who are 'foundation_admin' and 'pending_verification'
-  // Then join with 'foundations' table
+  // Find foundations with 'pending_verification' status
+  // Then join with 'users' table for foundation admin details
   let query = supabase
     .from('foundations')
     .select(`
         *,
-        user:users!foundation_id (user_id, email, first_name, last_name, account_status, created_at)
+        user:users!foundation_id (user_id, email, first_name, last_name, created_at)
     `, { count: 'exact' })
     .eq('user.user_type', 'foundation_admin')
-    .eq('user.account_status', 'pending_verification')
+    .eq('foundation_status', 'pending_verification')
     .order('created_at', { ascending: true });
 
   const startIndex = (parseInt(page, 10) - 1) * parseInt(limit, 10);
@@ -91,12 +91,13 @@ const approveFoundationAccount = asyncHandler(async (req, res) => {
   const adminUserId = req.user.user_id;
   const { foundationId } = req.params; // This is the foundation_id from the URL
 
-  // 1. Get the foundation details to find the associated user_id
+  // 1. Get the foundation details to check current status
   const { data: foundationData, error: fetchFoundationError } = await supabase
     .from('foundations')
     .select(`
       foundation_id,
-      user:users!foundation_id (user_id, account_status, user_type)
+      foundation_status,
+      user:users!foundation_id (user_id, user_type)
     `)
     .eq('foundation_id', foundationId)
     .single();
@@ -105,41 +106,27 @@ const approveFoundationAccount = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, `Foundation with ID ${foundationId} not found or associated user is not a foundation admin.`);
   }
 
-  const userToUpdateId = foundationData.user.user_id;
-  console.log(`User ${userToUpdateId} (Foundation ID ${foundationId}) current account status: ${foundationData.user.account_status}`); // Debug log
+  console.log(`Foundation ${foundationId} current status: ${foundationData.foundation_status}`); // Debug log
 
-  // 2. Update User's account_status
-  const { data: updatedUser, error: userUpdateError } = await supabase
-    .from('users')
-    .update({ account_status: 'active' })
-    .eq('user_id', userToUpdateId)
-    .eq('user_type', 'foundation_admin')
-    .eq('account_status', 'pending_verification') // Re-add this condition
-    .select('user_id, account_status')
-    .single();
-
-  if (userUpdateError || !updatedUser) {
-    throw new ApiError(httpStatus.NOT_FOUND, `Foundation account ${foundationId} (user ID: ${userToUpdateId}) not found, not pending, or failed to update user status.`);
-  }
-
-  // 3. Update Foundation's verification details
+  // 2. Update Foundation's status to 'active'
   const { data: updatedFoundation, error: foundationUpdateError } = await supabase
     .from('foundations')
     .update({
+      foundation_status: 'active',
       verified_at: new Date().toISOString(),
       verified_by_admin_id: adminUserId,
       verification_notes: req.body.verification_notes || null,
     })
     .eq('foundation_id', foundationId)
+    .eq('foundation_status', 'pending_verification') // Only update if currently pending
     .select()
     .single();
 
   if (foundationUpdateError || !updatedFoundation) {
-    console.error(`CRITICAL: User ${userToUpdateId} status set to active, but foundation verification details failed to update.`);
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'User status updated, but failed to finalize foundation verification details.');
+    throw new ApiError(httpStatus.NOT_FOUND, `Foundation ${foundationId} not found, not pending verification, or failed to update status.`);
   }
 
-  res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { updatedUser, updatedFoundation }, 'Foundation account approved and verified.'));
+  res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { updatedFoundation }, 'Foundation account approved and verified.'));
 });
 
 // PATCH /api/admin/foundations/:foundationId/reject-account
@@ -148,12 +135,13 @@ const rejectFoundationAccount = asyncHandler(async (req, res) => {
   const { foundationId } = req.params;
   const { rejection_reason } = req.body;
 
-  // 1. Get the foundation details to find the associated user_id
+  // 1. Get the foundation details to check current status
   const { data: foundationData, error: fetchFoundationError } = await supabase
     .from('foundations')
     .select(`
       foundation_id,
-      user:users!foundation_id (user_id, account_status, user_type)
+      foundation_status,
+      user:users!foundation_id (user_id, user_type)
     `)
     .eq('foundation_id', foundationId)
     .single();
@@ -162,46 +150,31 @@ const rejectFoundationAccount = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, `Foundation with ID ${foundationId} not found or associated user is not a foundation admin.`);
   }
 
-  const userToUpdateId = foundationData.user.user_id;
-  console.log(`User ${userToUpdateId} (Foundation ID ${foundationId}) current account status: ${foundationData.user.account_status}`); // Debug log
+  console.log(`Foundation ${foundationId} current status: ${foundationData.foundation_status}`); // Debug log
 
-   // 2. Update User's account_status to 'inactive' or 'rejected_verification' (if you add such status)
-  const { data: updatedUser, error: userUpdateError } = await supabase
-    .from('users')
-    .update({ account_status: 'inactive' }) // Or a specific 'rejected' status
-    .eq('user_id', userToUpdateId)
-    .eq('user_type', 'foundation_admin')
-    .eq('account_status', 'pending_verification') // Re-add this condition
-    .select('user_id, account_status')
-    .single();
-
-  if (userUpdateError || !updatedUser) {
-    throw new ApiError(httpStatus.NOT_FOUND, `Foundation account ${foundationId} (user ID: ${userToUpdateId}) not found, not pending, or failed to update user status for rejection.`);
-  }
-
-  // 3. Update Foundation's verification_notes and rejected_at
+  // 2. Update Foundation's status to 'rejected'
   const { data: updatedFoundation, error: foundationUpdateError } = await supabase
     .from('foundations')
     .update({
+      foundation_status: 'rejected',
       verified_at: null, // Ensure not verified
       rejected_at: new Date().toISOString(), // Set rejection timestamp
       verified_by_admin_id: adminUserId,
       rejection_reason: rejection_reason, // Use the provided rejection reason
     })
     .eq('foundation_id', foundationId)
+    .eq('foundation_status', 'pending_verification') // Only update if currently pending
     .select()
     .single();
 
-  if (foundationUpdateError && !updatedFoundation) {
-      console.warn(`User ${userToUpdateId} rejected, but no existing foundation profile to update notes on. This might be normal if profile is created after verification.`);
-  } else if (foundationUpdateError) {
-      console.error(`User ${userToUpdateId} rejected, but failed to update foundation verification notes.`);
+  if (foundationUpdateError || !updatedFoundation) {
+    throw new ApiError(httpStatus.NOT_FOUND, `Foundation ${foundationId} not found, not pending verification, or failed to update status.`);
   }
 
   // TODO: Log admin action
   // TODO: Notify Foundation Admin about rejection and reason
 
-  res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { updatedUser }, 'Foundation account registration rejected.'));
+  res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { updatedFoundation }, 'Foundation account registration rejected.'));
 });
 
 // PATCH /api/admin/foundations/documents/:documentId/review (Admin reviews a specific document)
@@ -241,7 +214,7 @@ const getFoundationDetails = asyncHandler(async (req, res) => {
     .from('foundations')
     .select(`
       *,
-      user:users!foundation_id (user_id, email, account_status)
+      user:users!foundation_id (user_id, email)
     `) // Select all foundation fields and the user_id from the linked user
     .eq('foundation_id', foundationId)
     .single();
@@ -259,7 +232,6 @@ const getFoundationDetails = asyncHandler(async (req, res) => {
     ...foundation,
     user_id: foundation.user ? foundation.user.user_id : null,
     admin_user_id: foundation.user ? foundation.user.user_id : null, // For backward compatibility if frontend uses admin_user_id
-    user_account_status: foundation.user ? foundation.user.account_status : null,
   };
 
   // Remove the nested user object to flatten the structure if desired, or keep it
