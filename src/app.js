@@ -71,7 +71,12 @@ app.use(express.urlencoded({ extended: true })); // Parse urlencoded request bod
 
 // CORS configuration - อนุญาตทุก origin
 const corsOptions = {
-  origin: true, // อนุญาตทุก origin
+  origin: [
+    'http://localhost:8080',
+    'http://localhost:3000',
+    'https://giving-heart-th.vercel.app',
+    'https://backend-lcjt.onrender.com'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept'],
