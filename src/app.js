@@ -140,6 +140,21 @@ app.get('/api/test-messages', (req, res) => {
 // API Routes
 app.use('/api', apiRouter);
 
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'Backend API Server is running',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      api: '/api',
+      test: '/api/test'
+    }
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
