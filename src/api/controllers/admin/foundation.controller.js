@@ -3,6 +3,7 @@ const { supabase } = require('../../../config/supabase.config');
 const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
+const { createNotification } = require('../../../services/notification.service');
 
 // GET /api/admin/foundations/pending-verification
 const listPendingVerificationFoundations = asyncHandler(async (req, res) => {
@@ -96,14 +97,14 @@ const approveFoundationAccount = asyncHandler(async (req, res) => {
     .from('foundations')
     .select(`
       foundation_id,
-      foundation_status,
-      user:users!foundation_id (user_id, user_type)
+      foundation_name,
+      foundation_status
     `)
     .eq('foundation_id', foundationId)
     .single();
 
-  if (fetchFoundationError || !foundationData || !foundationData.user || foundationData.user.user_type !== 'foundation_admin') {
-    throw new ApiError(httpStatus.NOT_FOUND, `Foundation with ID ${foundationId} not found or associated user is not a foundation admin.`);
+  if (fetchFoundationError || !foundationData) {
+    throw new ApiError(httpStatus.NOT_FOUND, `Foundation with ID ${foundationId} not found.`);
   }
 
   console.log(`Foundation ${foundationId} current status: ${foundationData.foundation_status}`); // Debug log
@@ -126,6 +127,20 @@ const approveFoundationAccount = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, `Foundation ${foundationId} not found, not pending verification, or failed to update status.`);
   }
 
+  // Send notification to foundation admin about approval
+  try {
+    await createNotification(
+      foundationData.user.user_id,
+      'foundation_approved',
+      `มูลนิธิของคุณได้รับการอนุมัติแล้ว`,
+      foundationId,
+      `มูลนิธิ ${updatedFoundation.foundation_name || 'ของคุณ'} ได้รับการอนุมัติจากระบบแล้ว คุณสามารถเริ่มใช้งานระบบได้เต็มรูปแบบ`,
+      `/foundation/profile`
+    );
+  } catch (notificationError) {
+    console.error('Failed to send foundation approval notification:', notificationError);
+  }
+
   res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { updatedFoundation }, 'Foundation account approved and verified.'));
 });
 
@@ -133,21 +148,17 @@ const approveFoundationAccount = asyncHandler(async (req, res) => {
 const rejectFoundationAccount = asyncHandler(async (req, res) => {
   const adminUserId = req.user.user_id;
   const { foundationId } = req.params;
-  const { rejection_reason } = req.body;
+  const { verification_notes } = req.validatedData;
 
   // 1. Get the foundation details to check current status
   const { data: foundationData, error: fetchFoundationError } = await supabase
     .from('foundations')
-    .select(`
-      foundation_id,
-      foundation_status,
-      user:users!foundation_id (user_id, user_type)
-    `)
+    .select('foundation_id, foundation_status')
     .eq('foundation_id', foundationId)
     .single();
 
-  if (fetchFoundationError || !foundationData || !foundationData.user || foundationData.user.user_type !== 'foundation_admin') {
-    throw new ApiError(httpStatus.NOT_FOUND, `Foundation with ID ${foundationId} not found or associated user is not a foundation admin.`);
+  if (fetchFoundationError || !foundationData) {
+    throw new ApiError(httpStatus.NOT_FOUND, `Foundation with ID ${foundationId} not found.`);
   }
 
   console.log(`Foundation ${foundationId} current status: ${foundationData.foundation_status}`); // Debug log
@@ -158,9 +169,8 @@ const rejectFoundationAccount = asyncHandler(async (req, res) => {
     .update({
       foundation_status: 'rejected',
       verified_at: null, // Ensure not verified
-      rejected_at: new Date().toISOString(), // Set rejection timestamp
       verified_by_admin_id: adminUserId,
-      rejection_reason: rejection_reason, // Use the provided rejection reason
+      verification_notes: verification_notes, // Use the provided rejection reason
     })
     .eq('foundation_id', foundationId)
     .eq('foundation_status', 'pending_verification') // Only update if currently pending
@@ -171,8 +181,8 @@ const rejectFoundationAccount = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.NOT_FOUND, `Foundation ${foundationId} not found, not pending verification, or failed to update status.`);
   }
 
-  // TODO: Log admin action
-  // TODO: Notify Foundation Admin about rejection and reason
+  // Note: Notification sending is skipped as foundation doesn't have associated user_id
+  console.log(`Foundation ${foundationId} rejected successfully by admin ${adminUserId}`);
 
   res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { updatedFoundation }, 'Foundation account registration rejected.'));
 });
@@ -182,6 +192,25 @@ const reviewFoundationDocument = asyncHandler(async (req, res) => {
     const { documentId } = req.params;
     const { verification_status_by_admin, admin_remarks } = req.validatedData;
     const adminUserId = req.user.user_id;
+
+    // Get document details with foundation info before updating
+    const { data: documentData, error: fetchError } = await supabase
+        .from('foundation_documents')
+        .select(`
+            document_id,
+            document_type,
+            foundation_id,
+            foundation:foundations!foundation_id(
+                foundation_name,
+                verified_by_admin_id
+            )
+        `)
+        .eq('document_id', documentId)
+        .single();
+
+    if (fetchError || !documentData) {
+        throw new ApiError(httpStatus.NOT_FOUND, `Document with ID ${documentId} not found.`);
+    }
 
     const { data: updatedDocument, error } = await supabase
         .from('foundation_documents')
@@ -198,8 +227,29 @@ const reviewFoundationDocument = asyncHandler(async (req, res) => {
         throw new ApiError(httpStatus.NOT_FOUND, `Document with ID ${documentId} not found or failed to update.`);
     }
 
-    // TODO: Notify foundation admin about document review status
-    // TODO: Log admin action
+    // Notify foundation admin about document review status
+    try {
+        const statusMessages = {
+            'approved': 'อนุมัติ',
+            'rejected': 'ปฏิเสธ',
+            'pending': 'รอการตรวจสอบ'
+        };
+        
+        const statusText = statusMessages[verification_status_by_admin] || verification_status_by_admin;
+        const shortMessage = `เอกสาร ${documentData.document_type}: ${statusText}`;
+        const longMessage = `เอกสาร ${documentData.document_type} ของมูลนิธิ ${documentData.foundation.foundation_name} ได้รับการ${statusText}${admin_remarks ? ` หมายเหตุ: ${admin_remarks}` : ''}`;
+        
+        await createNotification(
+            documentData.foundation.admin_user_id,
+            'document_reviewed',
+            shortMessage,
+            documentData.document_id,
+            longMessage,
+            `/foundation/documents/${documentData.document_id}`
+        );
+    } catch (notificationError) {
+        console.error('Failed to send document review notification:', notificationError);
+    }
 
     res.status(httpStatus.OK).json(
         new ApiResponse(httpStatus.OK, updatedDocument, `Document ${documentId} status updated to ${verification_status_by_admin}.`)

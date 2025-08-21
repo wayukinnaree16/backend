@@ -148,7 +148,56 @@ const upsertMyFoundationProfile = asyncHandler(async (req, res) => {
   );
 });
 
+// POST /api/foundation/profile/resubmit
+const resubmitFoundationProfile = asyncHandler(async (req, res) => {
+  const foundationAdminUserId = req.user.user_id;
+
+  // ตรวจสอบว่ามี foundation profile อยู่และสถานะเป็น rejected
+  const { data: foundationProfile, error: fetchError } = await supabase
+    .from('foundations')
+    .select('foundation_id, foundation_status')
+    .eq('foundation_id', foundationAdminUserId)
+    .single();
+
+  if (fetchError || !foundationProfile) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Foundation profile not found.');
+  }
+
+  if (foundationProfile.foundation_status !== 'rejected') {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Only rejected foundations can be resubmitted.');
+  }
+
+  // อัปเดตสถานะเป็น pending_verification และล้าง verification notes
+  const { data: updatedProfile, error: updateError } = await supabase
+    .from('foundations')
+    .update({
+      foundation_status: 'pending_verification',
+      verified_at: null,
+      verified_by_admin_id: null,
+      verification_notes: null
+    })
+    .eq('foundation_id', foundationAdminUserId)
+    .select(`
+      *,
+      foundation_type:foundation_types (name)
+    `)
+    .single();
+
+  if (updateError || !updatedProfile) {
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Failed to resubmit foundation profile.');
+  }
+
+  res.status(httpStatus.OK).json(
+    new ApiResponse(
+      httpStatus.OK,
+      updatedProfile,
+      'Foundation profile resubmitted successfully. Status changed to pending verification.'
+    )
+  );
+});
+
 module.exports = {
   getMyFoundationProfile,
   upsertMyFoundationProfile,
+  resubmitFoundationProfile,
 };

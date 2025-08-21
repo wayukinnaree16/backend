@@ -3,7 +3,6 @@ const { supabase } = require('../../../config/supabase.config');
 const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
-const { createNotification } = require('../../../services/notification.service');
 
 
 // POST /api/donor/pledges/:pledgeId/reviews
@@ -65,21 +64,7 @@ const submitReviewForPledge = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to submit review: ${insertError.message}`);
   }
 
-  // TODO: Notify System Admin about new review pending approval
-  // Example: (You'd need to get System Admin IDs)
-  /*
-  const systemAdminIds = [1, 2]; // Example admin IDs
-  for (const adminId of systemAdminIds) {
-      await createNotification(
-          adminId,
-          'new_review_pending',
-          `รีวิวใหม่จากผู้บริจาค ${req.user.first_name} สำหรับ pledge ID ${pledge.pledge_id} รอการอนุมัติ`,
-          newReview.review_id,
-          `ความคิดเห็น: ${comment_text || '-'} คะแนน: ${rating_score}`,
-          `/admin/moderation/reviews/${newReview.review_id}` // Example link
-      );
-  }
-  */
+
 
 
   res.status(httpStatus.CREATED).json(
@@ -93,4 +78,4 @@ const submitReviewForPledge = asyncHandler(async (req, res) => {
 
 module.exports = {
   submitReviewForPledge,
-}; 
+};

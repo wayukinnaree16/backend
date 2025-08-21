@@ -4,6 +4,7 @@ const ApiError = require('../../utils/ApiError');
 const ApiResponse = require('../../utils/ApiResponse');
 const asyncHandler = require('../../utils/asyncHandler');
 const { uploadToSupabaseStorage } = require('../../services/file-upload.service');
+const { createNotification } = require('../../services/notification.service');
 const bcrypt = require('bcrypt');
 
 const getMyProfile = asyncHandler(async (req, res) => {
@@ -119,6 +120,31 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     }
   });
 
+  // Send notification about profile update
+  try {
+    const changedFields = [];
+    if (existingUser.first_name !== updatedUser.first_name) changedFields.push('ชื่อ');
+    if (existingUser.last_name !== updatedUser.last_name) changedFields.push('นามสกุล');
+    if (existingUser.phone_number !== updatedUser.phone_number) changedFields.push('เบอร์โทรศัพท์');
+    if (existingUser.profile_image_url !== updatedUser.profile_image_url) changedFields.push('รูปโปรไฟล์');
+    
+    if (changedFields.length > 0) {
+      const shortMessage = 'โปรไฟล์ได้รับการอัปเดต';
+      const longMessage = `คุณได้อัปเดต${changedFields.join(', ')}ในโปรไฟล์ของคุณเรียบร้อยแล้ว`;
+      
+      await createNotification(
+        userId,
+        'profile_updated',
+        shortMessage,
+        userId,
+        longMessage,
+        '/profile'
+      );
+    }
+  } catch (notificationError) {
+    console.error('Failed to send profile update notification:', notificationError);
+  }
+
   const { password_hash: _, ...userResponse } = updatedUser;
 
   res.status(httpStatus.OK).json(
@@ -175,4 +201,4 @@ module.exports = {
   getMyProfile,
   updateUserProfile,
   changePasswordLoggedInUser,
-}; 
+};

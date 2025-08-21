@@ -14,7 +14,7 @@ const foundationWishlistItemSchema = Joi.object({
   quantity_needed: Joi.number().integer().positive().required(),
   quantity_unit: Joi.string().max(50).required(),
   // quantity_received is managed by system, not direct input
-  urgency_level: Joi.string().valid('normal', 'urgent', 'very_urgent').default('normal'),
+  urgency_level: Joi.string().valid('normal', 'urgent', 'very_urgent', 'extremely_urgent').default('normal'),
   status: Joi.string().valid('open_for_donation', 'temporarily_closed', 'fulfilled', 'archived').default('open_for_donation'),
   example_image_url: Joi.string().uri().max(255).allow(null, ''),
   // posted_date, last_updated_date are managed by DB
@@ -27,7 +27,7 @@ const updateFoundationWishlistItemSchema = Joi.object({
   description_detail: Joi.string(),
   quantity_needed: Joi.number().integer().positive(),
   quantity_unit: Joi.string().max(50),
-  urgency_level: Joi.string().valid('normal', 'urgent', 'very_urgent'),
+  urgency_level: Joi.string().valid('normal', 'urgent', 'very_urgent', 'extremely_urgent'),
   status: Joi.string().valid('open_for_donation', 'temporarily_closed', 'fulfilled', 'archived'),
   example_image_url: Joi.string().uri().max(255).allow(null, ''),
 }).min(1); // ต้องมีอย่างน้อย 1 field ที่จะ update
@@ -37,7 +37,7 @@ const publicWishlistQuerySchema = Joi.object({
   category_id: Joi.number().integer().positive().allow(null),
   foundation_id: Joi.number().integer().positive().allow(null), // Filter by specific foundation
   province: Joi.string().max(100).allow(null, ''), // Filter by foundation's province
-  urgency_level: Joi.string().valid('normal', 'urgent', 'very_urgent').allow(null),
+  urgency_level: Joi.string().valid('normal', 'urgent', 'very_urgent', 'extremely_urgent').allow(null),
   status: Joi.string().valid('open_for_donation').default('open_for_donation'), // Default to only open items for public
   sort_by: Joi.string().valid(
     'posted_date_desc', 'posted_date_asc',

@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const { createNotification } = require('../../services/notification.service');
 
 const registerUser = asyncHandler(async (req, res) => {
   const { 
@@ -120,6 +121,36 @@ const registerUser = asyncHandler(async (req, res) => {
     }
 
     const { password_hash: _, ...userResponse } = newUser;
+
+    // Send notification to all system admins if this is a foundation admin registration
+    if (user_type === 'foundation_admin') {
+      try {
+        // Get all system admin users
+        const { data: systemAdmins, error: adminError } = await supabase
+          .from('users')
+          .select('user_id')
+          .eq('user_type', 'system_admin')
+          .eq('account_status', 'active');
+
+        if (!adminError && systemAdmins && systemAdmins.length > 0) {
+          // Send notification to each system admin
+          for (const admin of systemAdmins) {
+            await createNotification(
+              admin.user_id,
+              'new_foundation_application',
+              `มีการสมัครมูลนิธิใหม่: ${first_name} ${last_name}`,
+              newUser.user_id,
+              `ผู้สมัคร: ${first_name} ${last_name} (${email}) ได้สมัครเป็นผู้ดูแลมูลนิธิใหม่ กรุณาตรวจสอบและอนุมัติการสมัคร`,
+              `/admin/foundation-verification`
+            );
+          }
+          console.log(`Sent new foundation application notifications to ${systemAdmins.length} system admins`);
+        }
+      } catch (notificationError) {
+        console.warn('Failed to send admin notifications for new foundation application:', notificationError.message);
+        // Don't fail the registration if notification fails
+      }
+    }
 
     res.status(httpStatus.CREATED).json(
       new ApiResponse(

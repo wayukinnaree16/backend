@@ -29,11 +29,24 @@ const getMyNotifications = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to retrieve notifications: ${error.message}`);
   }
 
+  // Map database fields to frontend interface
+  const mappedNotifications = notifications.map(notification => ({
+    id: notification.notification_id,
+    title: notification.message_short,
+    message: notification.message_long || notification.message_short,
+    type: notification.notification_type,
+    is_read: notification.is_read,
+    related_entity_type: 'pledge', // Default for now
+    related_entity_id: notification.related_entity_id,
+    created_at: notification.created_at,
+    read_at: notification.read_at
+  }));
+
   res.status(httpStatus.OK).json(
     new ApiResponse(
       httpStatus.OK,
       {
-        notifications,
+        notifications: mappedNotifications,
         pagination: {
           currentPage: parseInt(page, 10),
           totalPages: Math.ceil((count || 0) / parseInt(limit, 10)),
@@ -112,4 +125,4 @@ module.exports = {
   getMyNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
-}; 
+};

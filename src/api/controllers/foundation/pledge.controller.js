@@ -3,6 +3,7 @@ const { supabase } = require('../../../config/supabase.config');
 const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
+const { createNotification } = require('../../../services/notification.service');
 
 // GET /api/foundation/pledges/received
 const getReceivedPledges = asyncHandler(async (req, res) => {
@@ -121,7 +122,42 @@ const approvePledge = asyncHandler(async (req, res) => {
   if (wishlistUpdateError) console.error("Error updating wishlist item quantity_received:", wishlistUpdateError);
   */
 
-  // TODO: Notify Donor about approval.
+  // Notify Donor about approval
+  try {
+    // Get donor information and item details
+    const { data: pledgeDetails, error: pledgeDetailsError } = await supabase
+      .from('donation_pledges')
+      .select(`
+        donor_id,
+        quantity_pledged,
+        foundation_wishlist_items (
+          item_name,
+          foundations (
+            foundation_name
+          )
+        )
+      `)
+      .eq('pledge_id', pledgeId)
+      .single();
+
+    if (!pledgeDetailsError && pledgeDetails) {
+      const itemName = pledgeDetails.foundation_wishlist_items?.item_name || 'รายการบริจาค';
+      const foundationName = pledgeDetails.foundation_wishlist_items?.foundations?.foundation_name || 'มูลนิธิ';
+      const quantity = pledgeDetails.quantity_pledged || 1;
+
+      await createNotification(
+        pledgeDetails.donor_id,
+        'pledge_approved',
+        `${foundationName} ได้อนุมัติการบริจาค ${itemName} จำนวน ${quantity} ชิ้นแล้ว`,
+        pledgeId,
+        `${foundationName} ได้อนุมัติการบริจาค ${itemName} จำนวน ${quantity} ชิ้นของคุณแล้ว กรุณาดำเนินการจัดส่งตามที่ตกลงกัน`,
+        '/donor/pledges'
+      );
+    }
+  } catch (notificationError) {
+    console.error('Failed to create notification for donor:', notificationError);
+    // Don't throw error - notification failure shouldn't affect the main operation
+  }
 
   res.status(httpStatus.OK).json(
     new ApiResponse(
@@ -168,16 +204,51 @@ const rejectPledge = asyncHandler(async (req, res) => {
   if (updateError) {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to reject pledge: ${updateError.message}`);
   }
-  // TODO: Notify Donor about rejection.
+  // Notify Donor about rejection
+  try {
+    // Get donor information and item details
+    const { data: pledgeDetails, error: pledgeDetailsError } = await supabase
+      .from('donation_pledges')
+      .select(`
+        donor_id,
+        quantity_pledged,
+        foundation_wishlist_items (
+          item_name,
+          foundations (
+            foundation_name
+          )
+        )
+      `)
+      .eq('pledge_id', pledgeId)
+      .single();
+
+    if (!pledgeDetailsError && pledgeDetails) {
+      const itemName = pledgeDetails.foundation_wishlist_items?.item_name || 'รายการบริจาค';
+      const foundationName = pledgeDetails.foundation_wishlist_items?.foundations?.foundation_name || 'มูลนิธิ';
+      const quantity = pledgeDetails.quantity_pledged || 1;
+
+      await createNotification(
+        pledgeDetails.donor_id,
+        'pledge_status_update',
+        `${foundationName} ไม่สามารถรับการบริจาค ${itemName} ได้`,
+        pledgeId,
+        `${foundationName} ไม่สามารถรับการบริจาค ${itemName} จำนวน ${quantity} ชิ้นได้ เหตุผล: ${rejection_reason_by_foundation || 'ไม่ได้ระบุเหตุผล'}`,
+        '/donor/pledges'
+      );
+    }
+  } catch (notificationError) {
+    console.error('Failed to create notification for donor:', notificationError);
+    // Don't throw error - notification failure shouldn't affect the main operation
+  }
 
   res.status(httpStatus.OK).json(
-    new ApiResponse(
-      httpStatus.OK,
-      updatedPledge,
-      'Pledge rejected successfully.'
-    )
-  );
-});
+      new ApiResponse(
+        httpStatus.OK,
+        updatedPledge,
+        'Pledge rejected successfully.'
+      )
+    );
+  });
 
 // PATCH /api/foundation/pledges/:pledgeId/confirm-receipt
 const confirmPledgeReceipt = asyncHandler(async (req, res) => {
@@ -250,7 +321,42 @@ const confirmPledgeReceipt = asyncHandler(async (req, res) => {
   }
   // --- Transaction End (Conceptual) ---
 
-  // TODO: Notify Donor about receipt confirmation.
+  // Notify Donor about receipt confirmation
+  try {
+    // Get donor information and item details
+    const { data: pledgeDetails, error: pledgeDetailsError } = await supabase
+      .from('donation_pledges')
+      .select(`
+        donor_id,
+        quantity_pledged,
+        foundation_wishlist_items (
+          item_name,
+          foundations (
+            foundation_name
+          )
+        )
+      `)
+      .eq('pledge_id', pledgeId)
+      .single();
+
+    if (!pledgeDetailsError && pledgeDetails) {
+      const itemName = pledgeDetails.foundation_wishlist_items?.item_name || 'รายการบริจาค';
+      const foundationName = pledgeDetails.foundation_wishlist_items?.foundations?.foundation_name || 'มูลนิธิ';
+      const quantity = pledgeDetails.quantity_pledged || 1;
+
+      await createNotification(
+         pledgeDetails.donor_id,
+         'donation_received',
+         `${foundationName} ได้ยืนยันการรับ ${itemName} จำนวน ${quantity} ชิ้นแล้ว`,
+         pledgeId,
+         `${foundationName} ได้ยืนยันการรับ ${itemName} จำนวน ${quantity} ชิ้นแล้ว ขอบคุณสำหรับการบริจาคของคุณ`,
+         '/donor/pledges'
+       );
+    }
+  } catch (notificationError) {
+    console.error('Failed to create notification for donor:', notificationError);
+    // Don't throw error - notification failure shouldn't affect the main operation
+  }
 
   res.status(httpStatus.OK).json(
     new ApiResponse(

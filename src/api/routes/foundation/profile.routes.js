@@ -20,4 +20,6 @@ router.put(
     profileController.upsertMyFoundationProfile
 );
 
+router.post('/resubmit', profileController.resubmitFoundationProfile);
+
 module.exports = router;

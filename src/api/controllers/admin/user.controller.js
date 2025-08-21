@@ -3,6 +3,7 @@ const { supabase } = require('../../../config/supabase.config');
 const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
+const { createNotification } = require('../../../services/notification.service');
 
 // GET /api/admin/users
 const listUsers = asyncHandler(async (req, res) => {
@@ -70,8 +71,29 @@ const updateUserAccountStatus = asyncHandler(async (req, res) => {
 
   if (error || !updatedUser) throw new ApiError(httpStatus.NOT_FOUND, `Failed to update status for user ${userId}: User not found or update failed.`);
 
-  // TODO: Log this action in Admin_Action_Logs
-  // TODO: Send notification to the user if status changes significantly (e.g., suspended, banned)
+  // Send notification to user about account status change
+  try {
+    const statusMessages = {
+      'active': 'บัญชีของคุณได้รับการเปิดใช้งานแล้ว',
+      'suspended': 'บัญชีของคุณถูกระงับชั่วคราว',
+      'pending_verification': 'บัญชีของคุณอยู่ระหว่างการตรวจสอบ',
+      'inactive': 'บัญชีของคุณถูกปิดใช้งาน'
+    };
+    
+    const shortMessage = statusMessages[account_status] || `สถานะบัญชีของคุณเปลี่ยนเป็น ${account_status}`;
+    const longMessage = `สถานะบัญชีของคุณได้รับการอัปเดตเป็น ${account_status}${reason ? ` เหตุผล: ${reason}` : ''}`;
+    
+    await createNotification(
+      userId,
+      'account_status_updated',
+      shortMessage,
+      userId,
+      longMessage,
+      `/profile`
+    );
+  } catch (notificationError) {
+    console.error('Failed to send account status update notification:', notificationError);
+  }
 
   res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, updatedUser, `User account status updated to ${account_status}.`));
 });
@@ -96,6 +118,20 @@ const banUser = asyncHandler(async (req, res) => {
 
     if (error) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to ban user: ${error.message}`);
     if (!data) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+
+    // Send notification to user about being banned
+    try {
+        await createNotification(
+            userId,
+            'account_banned',
+            `บัญชีของคุณถูกระงับ`,
+            userId,
+            `บัญชีของคุณถูกระงับการใช้งาน${ban_reason ? ` เหตุผล: ${ban_reason}` : ''} กรุณาติดต่อผู้ดูแลระบบหากต้องการข้อมูลเพิ่มเติม`,
+            `/profile`
+        );
+    } catch (notificationError) {
+        console.error('Failed to send ban notification:', notificationError);
+    }
 
     res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { user: data }, 'User banned successfully'));
 });
@@ -129,6 +165,20 @@ const unbanUser = asyncHandler(async (req, res) => {
     if (error) throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to unban user: ${error.message}`);
     if (!data) throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
 
+    // Send notification to user about being unbanned
+    try {
+        await createNotification(
+            userId,
+            'account_unbanned',
+            `บัญชีของคุณได้รับการปลดระงับแล้ว`,
+            userId,
+            `บัญชีของคุณได้รับการปลดระงับและสามารถใช้งานได้ตามปกติแล้ว${unban_reason ? ` หมายเหตุ: ${unban_reason}` : ''}`,
+            `/profile`
+        );
+    } catch (notificationError) {
+        console.error('Failed to send unban notification:', notificationError);
+    }
+
     res.status(httpStatus.OK).json(new ApiResponse(httpStatus.OK, { user: data }, 'User unbanned successfully'));
 });
 
@@ -155,4 +205,4 @@ module.exports = {
   banUser,
   unbanUser,
   resetUserStatus,
-}; 
+};

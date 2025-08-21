@@ -4,6 +4,7 @@ const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
 const { uploadToSupabaseStorage } = require('../../../services/file-upload.service');
+const { createNotification } = require('../../../services/notification.service');
 
 // POST /api/donor/pledges
 const createDonationPledge = asyncHandler(async (req, res) => {
@@ -151,7 +152,20 @@ const createDonationPledge = asyncHandler(async (req, res) => {
     }
   }
 
-  // (Optional) TODO: Create a notification for the foundation about the new pledge.
+  // Create notification for the foundation about the new pledge
+  try {
+    await createNotification(
+      foundation_id,
+      'new_donation',
+      `มีการบริจาคใหม่สำหรับ "${wishlistItem.item_name}" จำนวน ${quantity_pledged} รายการ`,
+      newPledge.pledge_id,
+      `ผู้บริจาค: ${donor_item_description || 'ไม่ระบุรายละเอียด'}\nวิธีการส่ง: ${delivery_method}`,
+      `/foundation/pledges`
+    );
+  } catch (notificationError) {
+    console.error('Failed to create notification:', notificationError);
+    // Don't fail the pledge creation if notification fails
+  }
 
   res.status(httpStatus.CREATED).json(
     new ApiResponse(
@@ -359,4 +373,4 @@ module.exports = {
   getMyDonationPledgeDetails,
   cancelMyPledge,
   updatePledgeTrackingInfo,
-}; 
+};

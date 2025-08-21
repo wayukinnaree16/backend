@@ -3,7 +3,6 @@ const { supabase } = require('../../../config/supabase.config');
 const ApiError = require('../../../utils/ApiError');
 const ApiResponse = require('../../../utils/ApiResponse');
 const asyncHandler = require('../../../utils/asyncHandler');
-const { createNotification } = require('../../../services/notification.service');
 
 
 // POST /api/messages
@@ -53,16 +52,7 @@ const sendInternalMessage = asyncHandler(async (req, res) => {
     throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, `Failed to send message: ${insertError.message}`);
   }
 
-  // Create a notification for the recipient
-  await createNotification(
-      recipient_id,
-      'new_message',
-      `คุณได้รับข้อความใหม่จาก ${req.user.first_name}`,
-      newMessage.message_id, // related_entity_id is the message_id
-      content.substring(0, 100) + (content.length > 100 ? '...' : ''), // Short preview
-      `/messages/conversation/${senderId}` // Link to conversation with sender (example)
-      // or /messages/pledge/PLEDGE_ID if pledge_id is present
-  );
+
 
 
   res.status(httpStatus.CREATED).json(
@@ -157,4 +147,4 @@ module.exports = {
   sendInternalMessage,
   listMyConversations, // This is a simplified version
   getMessagesInConversation,
-}; 
+};

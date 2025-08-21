@@ -38,10 +38,19 @@ const validate = (schema) => asyncHandler(async (req, res, next) => {
 
     if (error) {
       console.log('Validation middleware - Validation error:', error.details);
+      console.log('Validation middleware - Error types:', error.details.map(d => d.type));
+      console.log('Validation middleware - Full error object:', JSON.stringify(error, null, 2));
+      
       // หา field ที่ขาด ("any.required")
       const missingFields = error.details
         .filter((details) => details.type === 'any.required')
         .map((details) => details.context.key);
+      
+      // ตรวจสอบ error types อื่นๆ
+      const otherErrors = error.details.filter((details) => details.type !== 'any.required');
+      console.log('Validation middleware - Missing fields:', missingFields);
+      console.log('Validation middleware - Other errors:', otherErrors.map(e => ({ type: e.type, message: e.message })));
+      
       const errorMessage = 'กรุณาระบุข้อมูลที่จำเป็นให้ครบถ้วน';
       // ส่ง response พร้อม missing_fields
       return res.status(httpStatus.BAD_REQUEST).json({
@@ -60,4 +69,4 @@ const validate = (schema) => asyncHandler(async (req, res, next) => {
   }
 });
 
-module.exports = validate; 
+module.exports = validate;
