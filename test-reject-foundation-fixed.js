@@ -6,7 +6,7 @@ async function testRejectFoundation() {
     console.log('Testing foundation rejection with verification_notes...');
     
     const response = await axios.patch(
-      'http://localhost:3001api/admin/foundations/900000005/reject-account',
+      'https://backend-lcjt.onrender.comapi/admin/foundations/900000005/reject-account',
       {
         verification_notes: 'เอกสารไม่ครบถ้วน กรุณาเพิ่มใบอนุญาตจัดตั้งมูลนิธิ'
       },

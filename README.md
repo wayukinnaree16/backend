@@ -56,14 +56,14 @@ npm run test:api
 ### ทดสอบด้วย curl
 ```bash
 # Health check
-curl http://localhost:3001health
+curl https://backend-lcjt.onrender.comhealth
 
 # API test
-curl http://localhost:3001api/test
+curl https://backend-lcjt.onrender.comapi/test
 
 # Public endpoints
-curl http://localhost:3001api/public/foundations
-curl http://localhost:3001api/public/item-categories
+curl https://backend-lcjt.onrender.comapi/public/foundations
+curl https://backend-lcjt.onrender.comapi/public/item-categories
 ```
 
 ## API Endpoints

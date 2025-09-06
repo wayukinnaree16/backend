@@ -2,7 +2,7 @@
 
 ## Base URL
 ```
-http://localhost:3001
+https://backend-lcjt.onrender.com
 ```
 
 ## Endpoints ที่มีอยู่
@@ -45,29 +45,29 @@ http://localhost:3001
 
 ### 1. ทดสอบว่า API ทำงานได้
 ```bash
-curl http://localhost:3001api/test
+curl https://backend-lcjt.onrender.comapi/test
 ```
 
 ### 2. ทดสอบ Health Check
 ```bash
-curl http://localhost:3001health
+curl https://backend-lcjt.onrender.comhealth
 ```
 
 ### 3. ทดสอบ Public Endpoints
 ```bash
-curl http://localhost:3001api/public/foundations
-curl http://localhost:3001api/public/item-categories
+curl https://backend-lcjt.onrender.comapi/public/foundations
+curl https://backend-lcjt.onrender.comapi/public/item-categories
 ```
 
 ### 4. ทดสอบ Authentication
 ```bash
 # ลงทะเบียน
-curl -X POST http://localhost:3001api/auth/register \
+curl -X POST https://backend-lcjt.onrender.comapi/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
 
 # เข้าสู่ระบบ
-curl -X POST http://localhost:3001api/auth/login \
+curl -X POST https://backend-lcjt.onrender.comapi/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123"}'
 ```
@@ -85,7 +85,7 @@ curl -X POST http://localhost:3001api/auth/login \
 
 ### ลงทะเบียนผู้ใช้ใหม่
 ```javascript
-fetch('http://localhost:3001api/auth/register', {
+fetch('https://backend-lcjt.onrender.comapi/auth/register', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -102,7 +102,7 @@ fetch('http://localhost:3001api/auth/register', {
 
 ### เข้าสู่ระบบ
 ```javascript
-fetch('http://localhost:3001api/auth/login', {
+fetch('https://backend-lcjt.onrender.comapi/auth/login', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
