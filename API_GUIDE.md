@@ -45,29 +45,29 @@ http://localhost:3001
 
 ### 1. ทดสอบว่า API ทำงานได้
 ```bash
-curl http://localhost:3001/api/test
+curl http://localhost:3001api/test
 ```
 
 ### 2. ทดสอบ Health Check
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3001health
 ```
 
 ### 3. ทดสอบ Public Endpoints
 ```bash
-curl http://localhost:3001/api/public/foundations
-curl http://localhost:3001/api/public/item-categories
+curl http://localhost:3001api/public/foundations
+curl http://localhost:3001api/public/item-categories
 ```
 
 ### 4. ทดสอบ Authentication
 ```bash
 # ลงทะเบียน
-curl -X POST http://localhost:3001/api/auth/register \
+curl -X POST http://localhost:3001api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
 
 # เข้าสู่ระบบ
-curl -X POST http://localhost:3001/api/auth/login \
+curl -X POST http://localhost:3001api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123"}'
 ```
@@ -85,7 +85,7 @@ curl -X POST http://localhost:3001/api/auth/login \
 
 ### ลงทะเบียนผู้ใช้ใหม่
 ```javascript
-fetch('http://localhost:3001/api/auth/register', {
+fetch('http://localhost:3001api/auth/register', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -102,7 +102,7 @@ fetch('http://localhost:3001/api/auth/register', {
 
 ### เข้าสู่ระบบ
 ```javascript
-fetch('http://localhost:3001/api/auth/login', {
+fetch('http://localhost:3001api/auth/login', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'

@@ -14,7 +14,7 @@ async function testRejectFoundation() {
     console.log('Sending rejection request with data:', rejectData);
     
     const response = await axios.patch(
-      'http://localhost:3001/api/admin/foundations/900000005/reject-account',
+      'http://localhost:3001api/admin/foundations/900000005/reject-account',
       rejectData,
       {
         headers: {

@@ -56,14 +56,14 @@ npm run test:api
 ### ทดสอบด้วย curl
 ```bash
 # Health check
-curl http://localhost:3001/health
+curl http://localhost:3001health
 
 # API test
-curl http://localhost:3001/api/test
+curl http://localhost:3001api/test
 
 # Public endpoints
-curl http://localhost:3001/api/public/foundations
-curl http://localhost:3001/api/public/item-categories
+curl http://localhost:3001api/public/foundations
+curl http://localhost:3001api/public/item-categories
 ```
 
 ## API Endpoints
